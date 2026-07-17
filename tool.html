@@ -1903,7 +1903,43 @@
         .sub-btn:hover:not(:disabled) { opacity: 0.9; }
         .sub-btn-primary:hover:not(:disabled) { opacity: 0.92; }
         .sub-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        
+
+        /* ========== API Settings Modal (tool.html) ========== */
+        .api-settings-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(8px);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .api-settings-overlay.hidden { display: none !important; }
+        .api-settings-modal {
+            width: 460px;
+            max-width: 92vw;
+            background: #1a1a2e;
+            border: 1px solid #2a2a45;
+            border-radius: 16px;
+            padding: 26px;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+        }
+        .api-settings-modal h2 { font-size: 17px; color: #fff; margin-bottom: 4px; }
+        .api-settings-modal .desc { font-size: 12px; color: #6c7a99; margin-bottom: 18px; line-height: 1.5; }
+        .api-settings-modal .api-field { margin-bottom: 14px; }
+        .api-settings-modal .api-field label { display: block; font-size: 12px; color: #a0a0c0; margin-bottom: 5px; font-weight: 500; }
+        .api-settings-modal .api-field input { width: 100%; padding: 9px 13px; background: #13132b; border: 1px solid #2a2a45; border-radius: 9px; color: #e8e8f0; font-size: 13px; outline: none; transition: border-color 0.2s; }
+        .api-settings-modal .api-field input:focus { border-color: #0FB86A; }
+        .api-settings-modal .api-field input::placeholder { color: #4a4a6a; }
+        .api-settings-modal .api-field .hint { font-size: 11px; color: #5a5a7a; margin-top: 3px; }
+        .api-settings-modal .api-btn-row { display: flex; gap: 8px; margin-top: 18px; }
+        .api-settings-modal .api-btn { flex: 1; padding: 10px; border: none; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+        .api-settings-modal .api-btn-primary { background: linear-gradient(135deg,#0FB86A,#22B563); color: #fff; }
+        .api-settings-modal .api-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(15,184,106,0.35); }
+        .api-settings-modal .api-btn-secondary { background: #252542; border: 1px solid #3a3a5a; color: #a0a0c0; }
+        .api-settings-modal .api-btn-secondary:hover { background: #303352; color: #fff; }
+
         /* ========== AI 生图面板 ========== */
         .ai-generate-panel {
             display: none;
@@ -2783,6 +2819,37 @@
     <!-- 无限画布视口 -->
     <div class="canvas-wrapper" id="canvas-wrapper">
 
+        <!-- API Settings Modal -->
+        <div class="api-settings-overlay hidden" id="api-settings-overlay">
+            <div class="api-settings-modal">
+                <h2>🔑 API 配置</h2>
+                <p class="desc">请输入您的生图服务 API 信息。支持兼容 OpenAI Images API 格式的任意服务商。<br>配置信息仅保存在本地浏览器中，与 ai.html 共享。</p>
+                
+                <div class="api-field">
+                    <label>API 地址 (API Base URL)</label>
+                    <input type="text" id="cfg-api-base" placeholder="https://api.ikeap.cloud.tencent.com/v1">
+                    <div class="hint">例如：https://api.ikeap.cloud.tencent.com/v1 或 https://aihub.xffx.cc/v1</div>
+                </div>
+                
+                <div class="api-field">
+                    <label>API 密钥 (API Key)</label>
+                    <input type="password" id="cfg-api-key" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                    <div class="hint">您的 API 密钥将安全存储在浏览器 localStorage 中</div>
+                </div>
+
+                <div class="api-field">
+                    <label>模型名称 (可选)</label>
+                    <input type="text" id="cfg-model" placeholder="gpt-image-2" value="gpt-image-2">
+                    <div class="hint">留空默认使用 gpt-image-2</div>
+                </div>
+                
+                <div class="api-btn-row">
+                    <button class="api-btn api-btn-primary" onclick="saveApiSettings()">保存并使用</button>
+                    <button class="api-btn api-btn-secondary" onclick="closeApiSettings()">取消</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 左上角 AI 生图入口 -->
         <button class="ai-entry-btn" style="left:16px;" onclick="window.location.href='ai.html'">
             AI 生图
@@ -2791,6 +2858,11 @@
         <!-- 右侧配图生成侧边栏入口（绿色无图标） -->
         <button class="ai-entry-btn" style="right:16px;left:auto;" onclick="toggleSidebar()">
             配图生成
+        </button>
+
+        <!-- API 设置按钮 -->
+        <button class="ai-entry-btn" style="right:120px;left:auto;font-size:11px;" onclick="openApiSettings()" title="API配置">
+            ⚙ API
         </button>
 
         <div class="canvas-viewport" id="canvas-viewport">
@@ -5493,7 +5565,56 @@ function hideAIError() {
     if (box) box.style.display = 'none';
 }
 
-// 生成 AI 图片
+// ========== API Configuration (与 ai.html 共享) ==========
+const STORAGE_KEY_API = 'ai_image_api_config';
+
+function getApiConfig() {
+    try { const s = localStorage.getItem(STORAGE_KEY_API); if (s) return JSON.parse(s); } catch(e) {}
+    return null;
+}
+function saveApiConfig(c) { localStorage.setItem(STORAGE_KEY_API, JSON.stringify(c)); }
+
+function openApiSettings() {
+    const cfg = getApiConfig() || {};
+    document.getElementById('cfg-api-base').value = cfg.apiBase || '';
+    document.getElementById('cfg-api-key').value = cfg.apiKey || '';
+    document.getElementById('cfg-model').value = cfg.model || 'gpt-image-2';
+    document.getElementById('api-settings-overlay').classList.remove('hidden');
+}
+
+function closeApiSettings() {
+    if (!getApiConfig()?.apiKey) { alert('请先配置 API 信息才能使用生图功能'); return; }
+    document.getElementById('api-settings-overlay').classList.add('hidden');
+}
+
+function saveApiSettings() {
+    const apiBase = document.getElementById('cfg-api-base').value.trim().replace(/\/+$/, '');
+    const apiKey = document.getElementById('cfg-api-key').value.trim();
+    const model = document.getElementById('cfg-model').value.trim() || 'gpt-image-2';
+    if (!apiBase) { alert('请输入 API 地址'); return; }
+    if (!apiKey) { alert('请输入 API 密钥'); return; }
+    saveApiConfig({ apiBase, apiKey, model });
+    document.getElementById('api-settings-overlay').classList.add('hidden');
+    // 更新按钮文案显示当前模型
+    var btns = document.querySelectorAll('.btn-generate-ai');
+    btns.forEach(function(b) { if (b.textContent.includes('GPT')) b.textContent = model + ' 一键生成配图'; });
+    var sideBtn = document.getElementById('side-btn-gen');
+    if (sideBtn && sideBtn.textContent.includes('GPT')) sideBtn.textContent = model + ' 生成配图';
+    alert('✅ API 配置已保存！模型：' + model);
+}
+
+// 页面加载时检查配置
+(function() {
+    var cfg = getApiConfig();
+    if (!cfg || !cfg.apiKey) {
+        // 延迟弹出，避免影响页面加载
+        setTimeout(function() {
+            if (!getApiConfig()?.apiKey) openApiSettings();
+        }, 1500);
+    }
+})();
+
+// 生成 AI 图片（纯前端直接调用第三方API）
 async function generateAIImage() {
     const prompt = document.getElementById('ai-prompt-input').value.trim();
     if (!prompt) {
@@ -5539,15 +5660,29 @@ async function generateAIImage() {
     statusBar.classList.add('show');
     statusText.textContent = '正在调用 GPT 生图 API...';
 
+    // 检查API配置
+    const config = getApiConfig();
+    if (!config || !config.apiKey) {
+        openApiSettings();
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.textContent = (config.model||'GPT') + ' 一键生成配图';
+        return;
+    }
+
     try {
-        const apiUrl = location.origin + '/api/gpt-image';
-        statusText.textContent = '正在连接服务器...';
+        // 直接从前端调用第三方API
+        var apiUrl = config.apiBase + '/images/generations';
+        statusText.textContent = '正在调用生图 API...';
 
         const response = await fetch(apiUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + config.apiKey 
+            },
             body: JSON.stringify({
-                model: 'gpt-image-2',
+                model: config.model || 'gpt-image-2',
                 prompt: finalPrompt,
                 n: 1,
                 size: '1024x1024',
@@ -5555,34 +5690,9 @@ async function generateAIImage() {
             })
         });
 
-        // 先检查响应类型，防止HTML被当JSON解析
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('json')) {
-            const htmlText = await response.text();
-            console.error('非JSON响应:', htmlText.substring(0, 200));
-            
-            if (response.status === 404) {
-                throw new Error('服务端接口未找到 (/api/gpt-image)，请确认已启动本地服务 (WeChatCoverTool)');
-            } else if (htmlText.includes('<!DOCTYPE') || htmlText.includes('<html')) {
-                throw new Error('服务器返回了网页而非API数据，可能未启动或端口不对。请运行 start_tool.bat / start_tool_mac.sh 启动本地服务');
-            } else {
-                throw new Error('服务器异常响应 (' + response.status + ')');
-            }
-        }
-
         if (!response.ok) {
-            let errMsg = '服务器错误 (' + response.status + ')';
-            try {
-                const errData = await response.json();
-                if (errData.error && errData.error.message) {
-                    errMsg = errData.error.message;
-                } else if (errData.error) {
-                    errMsg = typeof errData.error === 'string' ? errData.error : JSON.stringify(errData.error);
-                }
-            } catch(e) {
-                errMsg = 'HTTP ' + response.status;
-            }
-            throw new Error(errMsg);
+            var errText = await response.text().catch(() => '');
+            throw new Error('API请求失败 (' + response.status + '): ' + errText.substring(0, 200));
         }
 
         const data = await response.json();
@@ -5602,7 +5712,17 @@ async function generateAIImage() {
         if (imageData.b64_json) {
             imageUrl = 'data:image/png;base64,' + imageData.b64_json;
         } else if (imageData.url) {
-            imageUrl = location.origin + '/api/proxy-image?url=' + encodeURIComponent(imageData.url);
+            // 尝试将URL转为base64避免跨域问题
+            try {
+                imageUrl = await fetch(imageData.url).then(r => r.blob()).then(b => {
+                    return new Promise((resolve, reject) => {
+                        var reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(b);
+                    });
+                });
+            } catch(e) {
+                console.warn('图片转码失败，使用原URL');
+                imageUrl = imageData.url;
+            }
         } else {
             throw new Error('无效的图片响应格式');
         }
@@ -6085,13 +6205,16 @@ window.openJimengPanel=function(){document.getElementById('jimeng-overlay').clas
 window.closeJimengPanel=function(){document.getElementById('jimeng-overlay').classList.remove('active');};
 
 window.jimengGenerate=async function(){
+    const cfg = getApiConfig();
+    if (!cfg || !cfg.apiKey) { openApiSettings(); return; }
     const b=document.getElementById('jm-btn-gen'),p=document.getElementById('jm-prompt').value.trim(),
           s=document.getElementById('jm-style').value.trim(),n=document.getElementById('jm-negative').value.trim();
     if(!p){alert('请输入配图描述');return;}
     let fp=p;if(s)fp+='\n\n风格：'+s;if(n)fp+='\n\n避免：'+n;
     b.disabled=true;b.textContent='生成中...';
     try{
-        const r=await fetch(location.origin+'/api/gpt-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'gpt-image-2',prompt:fp,n:1,size:'1024x1024'})});
+        const r=await fetch(cfg.apiBase+'/images/generations',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},body:JSON.stringify({model:cfg.model||'gpt-image-2',prompt:fp,n:1,size:'1024x1024'})});
+        if(!r.ok)throw new Error('API错误('+r.status+')');
         const d=await r.json();if(d.error)throw new Error(d.error.message);
         let u=d.data?.[0]?.b64_json||d.data?.[0]?.url||'';
         if(u.startsWith('/9j/')||u.startsWith('iVBOR'))u='data:image/png;base64,'+u;
@@ -6126,13 +6249,16 @@ window.injectMaterialToSidebar=function(){
     if(o&&t)t.innerHTML=o.innerHTML;
 };
 window.sidebarGenerate=async function(){
+    const cfg = getApiConfig();
+    if (!cfg || !cfg.apiKey) { openApiSettings(); return; }
     const b=document.getElementById('side-btn-gen'),sb=document.getElementById('side-status-bar'),
           st=document.getElementById('side-status-text'),ps=document.getElementById('side-preview-section'),
           p=document.getElementById('side-ai-prompt').value.trim(),s=document.getElementById('side-ai-style').value.trim();
     if(!p){alert('请输入描述');return;}let f=p;if(s)f+='\n风格：'+s;
     b.disabled=true;b.textContent='生成中...';sb.style.display='flex';st.textContent='正在调用API...';ps.style.display='none';
     try{
-        const r=await fetch(location.origin+'/api/gpt-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'gpt-image-2',prompt:f,n:1,size:'1024x1024'})});
+        const r=await fetch(cfg.apiBase+'/images/generations',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},body:JSON.stringify({model:cfg.model||'gpt-image-2',prompt:f,n:1,size:'1024x1024'})});
+        if(!r.ok)throw new Error('API错误('+r.status+')');
         const d=await r.json();if(d.error)throw new Error(d.error.message);
         let u=d.data?.[0]?.b64_json||d.data?.[0].url||'';
         if(u.startsWith('/9j/')||u.startsWith('iVBOR'))u='data:image/png;base64,'+u;
@@ -6392,6 +6518,8 @@ window.toggleSidebar=function(){
     };
 
     window.jimengGenerate = async function() {
+        const cfg = getApiConfig();
+        if (!cfg || !cfg.apiKey) { openApiSettings(); return; }
         const btn = document.getElementById('jm-btn-gen');
         const previewSec = document.getElementById('jm-preview-section');
         const prompt = document.getElementById('jm-prompt').value.trim();
@@ -6408,11 +6536,12 @@ window.toggleSidebar=function(){
         btn.textContent = '⏳ 正在生成...';
 
         try {
-            const resp = await fetch(location.origin + '/api/gpt-image', {
+            const resp = await fetch(cfg.apiBase + '/images/generations', {
                 method: 'POST',
-                headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({model:'gpt-image-2',prompt:finalPrompt,n:1,size:'1024x1024'})
+                headers: {'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},
+                body: JSON.stringify({model:cfg.model||'gpt-image-2',prompt:finalPrompt,n:1,size:'1024x1024'})
             });
+            if(!resp.ok) throw new Error('API错误('+resp.status+')');
             const data = await resp.json();
 
             if (data.error) throw new Error(data.error.message);
@@ -6549,6 +6678,8 @@ window.toggleSidebar=function(){
     
     // 侧边栏AI生图
     window.sidebarGenerate = async function() {
+        const cfg = getApiConfig();
+        if (!cfg || !cfg.apiKey) { openApiSettings(); return; }
         const btn = document.getElementById('side-btn-gen');
         const statusBar = document.getElementById('side-status-bar');
         const statusText = document.getElementById('side-status-text');
@@ -6566,10 +6697,11 @@ window.toggleSidebar=function(){
         previewSec.style.display = 'none';
         
         try {
-            const resp = await fetch(location.origin+'/api/gpt-image', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({model:'gpt-image-2',prompt:final,n:1,size:'1024x1024'})
+            const resp = await fetch(cfg.apiBase+'/images/generations', {
+                method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.apiKey},
+                body: JSON.stringify({model:cfg.model||'gpt-image-2',prompt:final,n:1,size:'1024x1024'})
             });
+            if(!resp.ok) throw new Error('API错误('+resp.status+')');
             const data = await resp.json();
             if (data.error) throw new Error(data.error.message);
             
