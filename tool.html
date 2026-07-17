@@ -7169,7 +7169,7 @@ window.toggleSidebar=function(){
         var canvas = event.target.closest('.cover-container');
         if (canvas && group.contains(canvas)) { event.stopImmediatePropagation(); selectCanvas(canvas); }
     }, true);
-    viewport.addEventListener('click', function (event) { if (!event.target.closest('.cover-container') && !event.target.closest('#workspace-add-canvas')) selectCanvas(null); }, true);
+    viewport.addEventListener('click', function (event) { if (!event.target.closest('.cover-container') && !event.target.closest('#workspace-add-canvas') && !event.target.closest('.ai-entry-btn')) selectCanvas(null); }, true);
     window.addEventListener('keydown', function (event) {
         if (event.key !== 'Delete' || !selected || event.target.closest('input, textarea, [contenteditable]')) return;
         var list = canvases(); if (list.length < 2) return;
