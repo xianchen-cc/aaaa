@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 生图 - 即梦风格工作台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: #0a0a12; color: #e8e8f0; font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+        /* API 设置弹窗 */
+        .api-settings-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .api-settings-overlay.hidden { display: none; }
+        
+        .api-settings-modal {
+            width: 480px;
+            max-width: 90vw;
+            background: #16162b;
+            border: 1px solid #2a2a45;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+        }
+        .api-settings-modal h2 {
+            font-size: 18px;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .api-settings-modal .desc {
+            font-size: 13px;
+            color: #6c7a99;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .api-field { margin-bottom: 16px; }
+        .api-field label {
+            display: block;
+            font-size: 13px;
+            color: #a0a0c0;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .api-field input {
+            width: 100%;
+            padding: 10px 14px;
+            background: #1a1a30;
+            border: 1px solid #2a2a45;
+            border-radius: 10px;
+            color: #e8e8f0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .api-field input:focus { border-color: #0FB86A; }
+        .api-field input::placeholder { color: #4a4a6a; }
+        .api-field .hint {
+            font-size: 11px;
+            color: #5a5a7a;
+            margin-top: 4px;
+        }
+        .api-btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .api-btn {
+            flex: 1;
+            padding: 11px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Noto Sans SC', sans-serif;
+            transition: all 0.2s;
+        }
+        .api-btn-primary {
+            background: linear-gradient(135deg, #0FB86A, #22B563);
+            color: #fff;
+        }
+        .api-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(15,184,106,0.35); }
+        .api-btn-secondary {
+            background: #1a1a2e;
+            border: 1px solid #2a2a45;
+            color: #a0a0c0;
+        }
+        .api-btn-secondary:hover { background: #252542; color: #fff; }
+
+        /* 顶部栏 */
+        .topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 56px;
+            background: rgba(16,16,28,0.95);
+            border-bottom: 1px solid #252540;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+            backdrop-filter: blur(12px);
+        }
+        .topbar-left { display: flex; align-items: center; gap: 14px; }
+        .back-btn {
+            width: 34px; height: 34px;
+            border-radius: 8px;
+            background: #1a1a2e;
+            border: 1px solid #2a2a45;
+            color: #a0a0c0;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .back-btn:hover { background: #252542; color: #fff; border-color: #3a3a5a; }
+        .topbar-title { font-size: 15px; font-weight: 600; color: #fff; }
+        .topbar-sub { font-size: 12px; color: #6c7a99; margin-left: 8px; }
+        .canvas-tools { display: flex; gap: 8px; align-items: center; }
+        .canvas-tool-btn {
+            padding: 6px 12px;
+            background: #1a1a2e;
+            border: 1px solid #2a2a45;
+            border-radius: 8px;
+            color: #a0a0c0;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .canvas-tool-btn:hover { background: #252542; color: #fff; }
+        .canvas-tool-btn.active { background: rgba(15,184,106,0.15); border-color: rgba(15,184,106,0.4); color: #0FB86A; }
+        .settings-btn {
+            padding: 6px 12px;
+            background: rgba(108,143,255,0.1);
+            border: 1px solid rgba(108,143,255,0.25);
+            border-radius: 8px;
+            color: #6C8FFF;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .settings-btn:hover { background: rgba(108,143,255,0.18); }
+
+        /* 主布局 */
+        .main { position: fixed; top: 56px; left: 0; right: 360px; bottom: 0; }
+
+        /* 无限画布 */
+        .infinite-canvas {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            cursor: grab;
+            background: #0a0a12;
+            position: relative;
+        }
+        .infinite-canvas:active { cursor: grabbing; }
+        .infinite-canvas::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            transform: translate(0, 0) scale(1);
+            transform-origin: 0 0;
+        }
+        .canvas-world {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+        .canvas-world.is-dragging { transition: none; }
+
+        .empty-hint {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            color: #4a4a6a;
+        }
+        .empty-hint svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.4; }
+        .empty-hint h3 { font-size: 18px; font-weight: 500; margin-bottom: 8px; color: #6c7a99; }
+        .empty-hint p { font-size: 13px; }
+
+        /* 生成的图片节点 */
+        .gen-image-node {
+            position: absolute;
+            width: 512px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            background: #13132b;
+            border: 1px solid #2a2a45;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+            user-select: none;
+        }
+        .gen-image-node:active { cursor: grabbing; }
+        .gen-image-node img { width: 100%; height: auto; display: block; }
+        .node-actions {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 10px 12px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            display: flex; gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .gen-image-node:hover .node-actions { opacity: 1; }
+        .node-action-btn {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: 'Noto Sans SC', sans-serif;
+            transition: all 0.2s;
+        }
+        .node-action-btn.use { background: #0FB86A; color: #fff; }
+        .node-action-btn.use:hover { background: #11d17a; }
+        .node-action-btn.del { background: rgba(255,107,107,0.15); color: #ff6b6b; margin-left: auto; }
+        .node-action-btn.del:hover { background: rgba(255,107,107,0.25); }
+
+        /* 右侧交流面板 */
+        .chat-panel {
+            position: fixed;
+            top: 56px; right: 0; bottom: 0;
+            width: 360px;
+            background: #16162b;
+            border-left: 1px solid #252540;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+        .chat-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid #252540;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .chat-header h3 { font-size: 14px; font-weight: 600; color: #fff; }
+        .chat-header span { font-size: 12px; color: #0FB86A; }
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .chat-history::-webkit-scrollbar { width: 5px; }
+        .chat-history::-webkit-scrollbar-thumb { background: #2a2a45; border-radius: 3px; }
+        .chat-message { display: flex; gap: 10px; }
+        .chat-avatar {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: #1a1a30;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            border: 1px solid #2a2a45;
+        }
+        .chat-avatar.user { background: #6C8FFF; color: #fff; border-color: #6C8FFF; }
+        .chat-content { flex: 1; }
+        .chat-bubble {
+            background: #1a1a30;
+            border: 1px solid #2a2a45;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #d8dce4;
+        }
+        .chat-message.user .chat-bubble { background: rgba(108,143,255,0.12); border-color: rgba(108,143,255,0.25); }
+        .chat-time { font-size: 11px; color: #5a5a7a; margin-top: 4px; }
+        .chat-image {
+            max-width: 100%;
+            border-radius: 10px;
+            margin-top: 8px;
+            border: 1px solid #2a2a45;
+            cursor: pointer;
+        }
+
+        /* 输入区 */
+        .chat-input-area {
+            border-top: 1px solid #252540;
+            padding: 14px;
+            background: #13132b;
+        }
+        .input-tabs {
+            display: flex; gap: 6px; margin-bottom: 10px;
+        }
+        .input-tab {
+            flex: 1;
+            padding: 7px 0;
+            background: #1a1a30;
+            border: 1px solid #2a2a45;
+            border-radius: 8px;
+            color: #888;
+            font-size: 12px;
+            cursor: pointer;
+            text-align: center;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .input-tab.active { background: rgba(15,184,106,0.12); border-color: rgba(15,184,106,0.35); color: #0FB86A; }
+        .input-field { margin-bottom: 10px; }
+        .input-field label {
+            display: block;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 6px;
+        }
+        .input-field textarea {
+            width: 100%;
+            min-height: 70px;
+            background: #1a1a30;
+            border: 1px solid #2a2a45;
+            border-radius: 10px;
+            padding: 10px;
+            color: #d8dce4;
+            font-size: 13px;
+            resize: vertical;
+            outline: none;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        .input-field textarea:focus { border-color: #0FB86A; }
+        .input-field textarea::placeholder { color: #5a5a7a; }
+        .input-field textarea.small { min-height: 44px; }
+        .negative-label { color: #ff8a8a !important; }
+
+        .generate-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #0FB86A, #22B563);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: 'Noto Sans SC', sans-serif;
+            transition: all 0.2s;
+        }
+        .generate-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(15,184,106,0.35); }
+        .generate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .status-bar {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+        .status-bar.active { display: flex; }
+
+        /* 生成中的占位 */
+        .generating-placeholder {
+            width: 512px;
+            height: 512px;
+            border-radius: 16px;
+            background: #13132b;
+            border: 1px dashed #2a2a45;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #6c7a99;
+            transform: translate(-50%, -50%);
+        }
+        .generating-placeholder .spinner { border-color: rgba(15,184,106,0.3); border-top-color: #0FB86A; }
+    </style>
+</head>
+<body>
+    <!-- API Settings Modal -->
+    <div class="api-settings-overlay" id="api-settings-overlay">
+        <div class="api-settings-modal">
+            <h2>🔑 API 配置</h2>
+            <p class="desc">请输入您的生图服务 API 信息。支持兼容 OpenAI Images API 格式的任意服务商。<br>配置信息仅保存在本地浏览器中。</p>
+            
+            <div class="api-field">
+                <label>API 地址 (API Base URL)</label>
+                <input type="text" id="cfg-api-base" placeholder="https://api.ikeap.cloud.tencent.com/v1">
+                <div class="hint">例如：https://api.ikeap.cloud.tencent.com/v1 或 https://aihub.xffx.cc/v1</div>
+            </div>
+            
+            <div class="api-field">
+                <label>API 密钥 (API Key)</label>
+                <input type="password" id="cfg-api-key" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                <div class="hint">您的 API 密钥将安全存储在浏览器 localStorage 中</div>
+            </div>
+
+            <div class="api-field">
+                <label>模型名称 (可选)</label>
+                <input type="text" id="cfg-model" placeholder="gpt-image-2" value="gpt-image-2">
+                <div class="hint">留空默认使用 gpt-image-2</div>
+            </div>
+            
+            <div class="api-btn-row">
+                <button class="api-btn api-btn-primary" onclick="saveApiSettings()">保存并开始使用</button>
+                <button class="api-btn api-btn-secondary" onclick="closeApiSettings()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="back-btn" onclick="window.location.href='tool.html'" title="返回封面编辑器">←</button>
+            <span class="topbar-title">AI 生图工作台</span>
+            <span class="topbar-sub" id="model-sub">GPT-Image 模型 · 无限画布</span>
+        </div>
+        <div class="canvas-tools">
+            <button class="canvas-tool-btn" id="tool-hand" onclick="setTool('hand')" title="平移画布">🖐 手型</button>
+            <button class="canvas-tool-btn" id="tool-select" onclick="setTool('select')" title="选择/移动图片">↖ 选择</button>
+            <button class="canvas-tool-btn" onclick="resetCanvas()">⟲ 重置视图</button>
+            <button class="settings-btn" onclick="openApiSettings()">⚙ API设置</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="infinite-canvas" id="infinite-canvas">
+            <div class="canvas-world" id="canvas-world">
+                <div class="empty-hint" id="empty-hint">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="4"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <path d="M21 15l-5-5L5 21"/>
+                    </svg>
+                    <h3>无限画布</h3>
+                    <p>在右侧输入描述，生成图片后将显示在这里</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-panel">
+        <div class="chat-header">
+            <h3>💬 生图交流</h3>
+            <span>在线</span>
+        </div>
+        <div class="chat-history" id="chat-history"></div>
+        <div class="chat-input-area">
+            <div class="input-tabs">
+                <div class="input-tab active" data-tab="prompt" onclick="switchInputTab(this)">配图描述</div>
+                <div class="input-tab" data-tab="style" onclick="switchInputTab(this)">风格</div>
+                <div class="input-tab" data-tab="negative" onclick="switchInputTab(this)">反向</div>
+            </div>
+            <div class="input-field" id="field-prompt">
+                <label>配图描述</label>
+                <textarea id="inp-prompt" placeholder="请帮我生成一张合同审查场景下的配图，黑底背景，高级苹果风格 SaaS 插图..."></textarea>
+            </div>
+            <div class="input-field" id="field-style" style="display:none;">
+                <label>风格提示词（可选）</label>
+                <textarea id="inp-style" class="small" placeholder="清新商务扁平插画，浅薄荷绿渐变背景..."></textarea>
+            </div>
+            <div class="input-field" id="field-negative" style="display:none;">
+                <label class="negative-label">反向提示词（可选）</label>
+                <textarea id="inp-negative" class="small" placeholder="模糊，低质量，水印，文字，变形..."></textarea>
+            </div>
+            <button class="generate-btn" id="generate-btn" onclick="generateImage()">
+                <span>🎨</span> 一键生成配图
+            </button>
+            <div class="status-bar" id="status-bar">
+                <div class="spinner"></div>
+                <span id="status-text">正在生成...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== API Configuration =====
+        const STORAGE_KEY_API = 'ai_image_api_config';
+        
+        function getApiConfig() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY_API);
+                if (stored) return JSON.parse(stored);
+            } catch(e) {}
+            return null;
+        }
+
+        function saveApiConfig(config) {
+            localStorage.setItem(STORAGE_KEY_API, JSON.stringify(config));
+        }
+
+        function openApiSettings() {
+            const config = getApiConfig() || {};
+            document.getElementById('cfg-api-base').value = config.apiBase || '';
+            document.getElementById('cfg-api-key').value = config.apiKey || '';
+            document.getElementById('cfg-model').value = config.model || 'gpt-image-2';
+            document.getElementById('api-settings-overlay').classList.remove('hidden');
+        }
+
+        function closeApiSettings() {
+            const config = getApiConfig();
+            if (!config || !config.apiKey) {
+                alert('请先配置 API 信息才能使用生图功能');
+                return;
+            }
+            document.getElementById('api-settings-overlay').classList.add('hidden');
+        }
+
+        function saveApiSettings() {
+            const apiBase = document.getElementById('cfg-api-base').value.trim().replace(/\/+$/, '');
+            const apiKey = document.getElementById('cfg-api-key').value.trim();
+            const model = document.getElementById('cfg-model').value.trim() || 'gpt-image-2';
+
+            if (!apiBase) { alert('请输入 API 地址'); return; }
+            if (!apiKey) { alert('请输入 API 密钥'); return; }
+
+            const config = { apiBase, apiKey, model };
+            saveApiConfig(config);
+            
+            // Update model display
+            document.getElementById('model-sub').textContent = model + ' · 无限画布';
+            
+            document.getElementById('api-settings-overlay').classList.add('hidden');
+            addMessage('ai', '✅ API 配置已保存。模型：' + model + '，地址：' + apiBase);
+        }
+
+        // Check config on load
+        (function() {
+            const config = getApiConfig();
+            if (!config || !config.apiKey) {
+                document.getElementById('api-settings-overlay').classList.remove('hidden');
+            } else {
+                document.getElementById('model-sub').textContent = (config.model || 'gpt-image-2') + ' · 无限画布';
+                document.getElementById('api-settings-overlay').classList.add('hidden');
+            }
+        })();
+
+        // ===== Canvas State =====
+        let canvasState = { x: 0, y: 0, scale: 1 };
+        let isDraggingCanvas = false;
+        let dragStart = { x: 0, y: 0 };
+        let currentTool = 'hand';
+        let nodeCounter = 0;
+        let draggedNode = null;
+        let nodeDragOffset = { x: 0, y: 0 };
+        const world = document.getElementById('canvas-world');
+        const canvas = document.getElementById('infinite-canvas');
+        const referencePresets = [
+            { id: 'sample-light-1', name: '清新卡片', url: 'assets/sample-light-1.png' },
+            { id: 'sample-light-2', name: '数据面板', url: 'assets/sample-light-2.png' },
+            { id: 'sample-light-3', name: '流程管理', url: 'assets/sample-light-3.png' },
+            { id: 'sample-light-4', name: 'AI 助手', url: 'assets/sample-light-4.png' }
+        ];
+        let selectedReferenceIds = new Set();
+        let latestGeneratedImage = '';
+
+        function getMaterialLibrary() {
+            try { return JSON.parse(localStorage.getItem('ai-image-material-library') || '[]'); }
+            catch (_) { return []; }
+        }
+
+        function renderReferences() {
+            const list = document.getElementById('reference-list');
+            if (!list) return;
+            const materials = getMaterialLibrary().map((url, index) => ({ id: `material-${index}`, name: '我的素材', url }));
+            const items = [...referencePresets, ...materials];
+            list.innerHTML = '';
+            items.forEach(item => {
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'reference-card' + (selectedReferenceIds.has(item.id) ? ' selected' : '');
+                card.title = item.name;
+                const image = document.createElement('img');
+                image.src = item.url;
+                image.alt = item.name;
+                const check = document.createElement('span');
+                check.className = 'reference-check';
+                check.textContent = '✓';
+                card.append(image, check);
+                card.onclick = () => {
+                    selectedReferenceIds.has(item.id) ? selectedReferenceIds.delete(item.id) : selectedReferenceIds.add(item.id);
+                    renderReferences();
+                };
+                list.appendChild(card);
+            });
+        }
+
+        async function imageUrlToDataUrl(url) {
+            if (url.startsWith('data:')) return url;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('参考图读取失败');
+            const blob = await response.blob();
+            return await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        async function selectedReferenceImages() {
+            const materials = getMaterialLibrary().map((url, index) => ({ id: `material-${index}`, url }));
+            const selected = [...referencePresets, ...materials].filter(item => selectedReferenceIds.has(item.id));
+            return await Promise.all(selected.map(item => imageUrlToDataUrl(item.url)));
+        }
+
+        function saveToLibrary() {
+            if (!latestGeneratedImage) return;
+            const library = getMaterialLibrary();
+            if (!library.includes(latestGeneratedImage)) {
+                library.unshift(latestGeneratedImage);
+                localStorage.setItem('ai-image-material-library', JSON.stringify(library.slice(0, 24)));
+            }
+            renderReferences();
+            const button = document.getElementById('save-library-btn');
+            button.textContent = '✓ 已添加至素材库';
+            button.disabled = true;
+            addMessage('ai', '已添加到素材库，下次打开时可直接作为参考图选择。');
+        }
+
+        renderReferences();
+
+        function updateCanvasTransform() {
+            world.style.transform = `translate(calc(-50% + ${canvasState.x}px), calc(-50% + ${canvasState.y}px)) scale(${canvasState.scale})`;
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.canvas-tool-btn').forEach(b => b.classList.remove('active'));
+            const toolEl = document.getElementById('tool-' + tool);
+            if (toolEl) toolEl.classList.add('active');
+            canvas.style.cursor = tool === 'hand' ? 'grab' : 'default';
+        }
+        setTool('hand');
+
+        function resetCanvas() {
+            canvasState = { x: 0, y: 0, scale: 1 };
+            updateCanvasTransform();
+        }
+
+        canvas.addEventListener('mousedown', e => {
+            if (e.target.closest('.gen-image-node')) return;
+            if (currentTool !== 'hand') return;
+            isDraggingCanvas = true;
+            dragStart = { x: e.clientX, y: e.clientY };
+            world.classList.add('is-dragging');
+            canvas.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', e => {
+            if (isDraggingCanvas) {
+                const dx = (e.clientX - dragStart.x) / canvasState.scale;
+                const dy = (e.clientY - dragStart.y) / canvasState.scale;
+                canvasState.x += dx;
+                canvasState.y += dy;
+                dragStart = { x: e.clientX, y: e.clientY };
+                updateCanvasTransform();
+            }
+            if (draggedNode) {
+                const rect = canvas.getBoundingClientRect();
+                const centerX = rect.width / 2 + canvasState.x;
+                const centerY = rect.height / 2 + canvasState.y;
+                const worldX = (e.clientX - centerX) / canvasState.scale;
+                const worldY = (e.clientY - centerY) / canvasState.scale;
+                draggedNode.dataset.x = worldX - nodeDragOffset.x;
+                draggedNode.dataset.y = worldY - nodeDragOffset.y;
+                updateNodePosition(draggedNode);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDraggingCanvas = false;
+            draggedNode = null;
+            world.classList.remove('is-dragging');
+            if (currentTool === 'hand') canvas.style.cursor = 'grab';
+        });
+
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            canvasState.scale = Math.max(0.2, Math.min(3, canvasState.scale * delta));
+            updateCanvasTransform();
+        }, { passive: false });
+
+        function makeNodeDraggable(node) {
+            node.addEventListener('mousedown', e => {
+                if (currentTool !== 'select') return;
+                e.stopPropagation();
+                draggedNode = node;
+                const rect = canvas.getBoundingClientRect();
+                const centerX = rect.width / 2 + canvasState.x;
+                const centerY = rect.height / 2 + canvasState.y;
+                const worldX = (e.clientX - centerX) / canvasState.scale;
+                const worldY = (e.clientY - centerY) / canvasState.scale;
+                nodeDragOffset.x = worldX - parseFloat(node.dataset.x || 0);
+                nodeDragOffset.y = worldY - parseFloat(node.dataset.y || 0);
+            });
+        }
+
+        function updateNodePosition(node) {
+            node.style.left = '50%';
+            node.style.top = '50%';
+            node.style.marginLeft = parseFloat(node.dataset.x || 0) + 'px';
+            node.style.marginTop = parseFloat(node.dataset.y || 0) + 'px';
+        }
+
+        function switchInputTab(tab) {
+            document.querySelectorAll('.input-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelectorAll('.input-field').forEach(f => f.style.display = 'none');
+            document.getElementById('field-' + tab.dataset.tab).style.display = 'block';
+        }
+
+        function addMessage(role, text, imageUrl) {
+            const history = document.getElementById('chat-history');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chat-message ' + role;
+            const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            const avatar = role === 'user' ? '我' : 'AI';
+            wrapper.innerHTML = `
+                <div class="chat-avatar ${role}">${avatar}</div>
+                <div class="chat-content">
+                    <div class="chat-bubble">${text}</div>
+                    ${imageUrl ? `<img class="chat-image" src="${imageUrl}" onclick="previewImage('${imageUrl}')">` : ''}
+                    <div class="chat-time">${time}</div>
+                </div>
+            `;
+            history.appendChild(wrapper);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        // ===== 核心生图逻辑（纯前端直接调用API） =====
+        async function generateImage() {
+            const config = getApiConfig();
+            if (!config || !config.apiKey) {
+                openApiSettings();
+                return;
+            }
+
+            const prompt = document.getElementById('inp-prompt').value.trim();
+            const style = document.getElementById('inp-style').value.trim();
+            const negative = document.getElementById('inp-negative').value.trim();
+            if (!prompt) { alert('请输入配图描述'); return; }
+
+            let finalPrompt = prompt;
+            if (style) finalPrompt += '\n\n风格要求：' + style;
+            if (negative) finalPrompt += '\n\n反向提示词：' + negative;
+            finalPrompt += '\n\n请只输出主体配图，背景须为纯亮绿色（#00FF00），不要在主体边缘加入绿色描边。';
+
+            const btn = document.getElementById('generate-btn');
+            const statusBar = document.getElementById('status-bar');
+            const statusText = document.getElementById('status-text');
+            const emptyHint = document.getElementById('empty-hint');
+            if (emptyHint) emptyHint.style.display = 'none';
+
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> 生成中...';
+            statusBar.classList.add('active');
+            statusText.textContent = '正在连接生图服务...';
+
+            addMessage('user', `生成配图：${prompt}${style ? '（风格：' + style + '）' : ''}`);
+
+            nodeCounter++;
+            const placeholder = document.createElement('div');
+            placeholder.className = 'generating-placeholder';
+            placeholder.id = 'placeholder-' + nodeCounter;
+            const posX = (nodeCounter - 1) * 40;
+            const posY = (nodeCounter - 1) * 40;
+            placeholder.dataset.x = posX;
+            placeholder.dataset.y = posY;
+            placeholder.innerHTML = '<div class="spinner"></div><span>正在生成...</span>';
+            world.appendChild(placeholder);
+            updateNodePosition(placeholder);
+
+            try {
+                const referenceImages = await selectedReferenceImages();
+                if (referenceImages.length) statusText.textContent = '正在结合参考图生成并自动抠图...';
+
+                // 直接从前端调用第三方API（绕过CORS通过模式）
+                statusText.textContent = '正在调用生图API...';
+                
+                const requestBody = {
+                    model: config.model || 'gpt-image-2',
+                    prompt: finalPrompt,
+                    n: 1,
+                    size: '1024x1024',
+                    reference_images: referenceImages
+                };
+
+                const response = await fetch(config.apiBase + '/images/generations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + config.apiKey
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text().catch(() => 'Unknown error');
+                    throw new Error(`API请求失败 (${response.status}): ${errText}`);
+                }
+
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+                let imageUrl = data.data?.[0]?.b64_json || data.data?.[0]?.url || '';
+                if (imageUrl.startsWith('/9j/') || imageUrl.startsWith('iVBOR')) {
+                    imageUrl = 'data:image/png;base64,' + imageUrl;
+                }
+                if (!imageUrl) throw new Error('未获取到图片数据');
+
+                // 如果是URL，尝试转为dataURL以避免后续跨域问题
+                if (!imageUrl.startsWith('data:')) {
+                    try {
+                        imageUrl = await imageUrlToDataUrl(imageUrl);
+                    } catch(e) {
+                        console.warn('图片URL转dataURL失败，使用原URL:', e);
+                    }
+                }
+
+                removeGreenScreen(imageUrl, function(processedUrl) {
+                    placeholder.remove();
+                    latestGeneratedImage = processedUrl;
+                    const saveBtn = document.getElementById('save-library-btn');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = '＋ 添加至素材库';
+                    }
+                    createImageNode(processedUrl, posX, posY);
+                    addMessage('ai', '配图已生成，您可以在左侧画布中查看和调整位置。', processedUrl);
+                    statusText.textContent = '生成完成';
+                    setTimeout(() => statusBar.classList.remove('active'), 1500);
+                });
+            } catch (err) {
+                placeholder.remove();
+                addMessage('ai', '生成失败：' + err.message);
+                statusText.textContent = '生成失败';
+                console.error(err);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>🎨</span> 一键生成配图';
+            }
+        }
+
+        function createImageNode(url, x, y) {
+            nodeCounter++;
+            const node = document.createElement('div');
+            node.className = 'gen-image-node';
+            node.dataset.x = x;
+            node.dataset.y = y;
+            node.innerHTML = `
+                <img src="${url}" alt="生成图片">
+                <div class="node-actions">
+                    <button class="node-action-btn use" onclick="useImage('${url}')">✓ 应用到封面</button>
+                    <button class="node-action-btn del" onclick="this.closest(\'.gen-image-node\').remove()">删除</button>
+                </div>
+            `;
+            world.appendChild(node);
+            updateNodePosition(node);
+            makeNodeDraggable(node);
+        }
+
+        function useImage(url) {
+            localStorage.setItem('ai-generated-image', url);
+            window.location.href = 'tool.html?useImage=1';
+        }
+
+        function previewImage(url) {
+            const win = window.open('', '_blank');
+            win.document.write(`<html><body style="margin:0;background:#0a0a12;display:flex;justify-content:center;align-items:center;"><img src="${url}" style="max-width:100%;max-height:100vh;"></body></html>`);
+        }
+
+        async function removeGreenScreen(src, callback) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+                const canvasEl = document.createElement('canvas');
+                canvasEl.width = img.width;
+                canvasEl.height = img.height;
+                const ctx = canvasEl.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2];
+                    const maxOther = Math.max(r, b);
+                    if (g > 100 && g - maxOther > 45) {
+                        const strength = g - maxOther;
+                        data[i+3] = strength >= 105 ? 0 : Math.floor(data[i+3] * Math.max(0, (105 - strength) / 60));
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+                callback(canvasEl.toDataURL('image/png'));
+            };
+            img.onerror = function() { callback(src); };
+            img.src = src;
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generateImage();
+        });
+    </script>
+</body>
+</html>
