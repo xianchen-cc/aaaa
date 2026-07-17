@@ -2714,13 +2714,6 @@
         }
         .ai-entry-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(34,197,94,0.45); }
         
-        /* API设置按钮 - 确保可点击 */
-        .api-settings-trigger {
-            z-index: 10000 !important;
-            pointer-events: auto !important;
-            position: relative !important;
-        }
-        
         /* ========== 右侧边栏（配图生成） ========== */
         .sidebar-panel {
             display: none;
@@ -2868,7 +2861,7 @@
         </button>
 
         <!-- API 设置按钮 -->
-        <button class="ai-entry-btn api-settings-trigger" style="right:120px;left:auto;font-size:11px;z-index:1000;position:relative;" onclick="openApiSettings(event)" title="API配置">
+        <button class="ai-entry-btn" id="api-settings-trigger" style="right:120px;left:auto;font-size:11px;" title="API配置">
             ⚙ API
         </button>
 
@@ -5581,14 +5574,25 @@ function getApiConfig() {
 }
 function saveApiConfig(c) { localStorage.setItem(STORAGE_KEY_API, JSON.stringify(c)); }
 
-function openApiSettings(event) {
-    if (event) { event.preventDefault(); event.stopPropagation(); }
+function openApiSettings() {
     const cfg = getApiConfig() || {};
     document.getElementById('cfg-api-base').value = cfg.apiBase || '';
     document.getElementById('cfg-api-key').value = cfg.apiKey || '';
     document.getElementById('cfg-model').value = cfg.model || 'gpt-image-2';
     document.getElementById('api-settings-overlay').classList.remove('hidden');
 }
+
+// API按钮事件绑定 - 使用捕获阶段确保优先触发
+document.addEventListener('DOMContentLoaded', function() {
+    var apiBtn = document.getElementById('api-settings-trigger');
+    if (apiBtn) {
+        apiBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            openApiSettings();
+        }, true); // 捕获阶段
+    }
+});
 
 function closeApiSettings() {
     if (!getApiConfig()?.apiKey) { alert('请先配置 API 信息才能使用生图功能'); return; }
