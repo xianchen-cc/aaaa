@@ -2714,6 +2714,13 @@
         }
         .ai-entry-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(34,197,94,0.45); }
         
+        /* API设置按钮 - 确保可点击 */
+        .api-settings-trigger {
+            z-index: 10000 !important;
+            pointer-events: auto !important;
+            position: relative !important;
+        }
+        
         /* ========== 右侧边栏（配图生成） ========== */
         .sidebar-panel {
             display: none;
@@ -2861,7 +2868,7 @@
         </button>
 
         <!-- API 设置按钮 -->
-        <button class="ai-entry-btn" style="right:120px;left:auto;font-size:11px;" onclick="openApiSettings()" title="API配置">
+        <button class="ai-entry-btn api-settings-trigger" style="right:120px;left:auto;font-size:11px;z-index:1000;position:relative;" onclick="openApiSettings(event)" title="API配置">
             ⚙ API
         </button>
 
@@ -5574,7 +5581,8 @@ function getApiConfig() {
 }
 function saveApiConfig(c) { localStorage.setItem(STORAGE_KEY_API, JSON.stringify(c)); }
 
-function openApiSettings() {
+function openApiSettings(event) {
+    if (event) { event.preventDefault(); event.stopPropagation(); }
     const cfg = getApiConfig() || {};
     document.getElementById('cfg-api-base').value = cfg.apiBase || '';
     document.getElementById('cfg-api-key').value = cfg.apiKey || '';
